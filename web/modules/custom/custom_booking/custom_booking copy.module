@@ -1,0 +1,211 @@
+<?php
+
+use Drupal\Core\Ajax\AjaxResponse;
+use Drupal\Core\Ajax\HtmlCommand;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\node\Entity\Node;
+use Drupal\webform\WebformSubmissionInterface;
+/**
+ * Implements hook_form_alter().
+ */
+function custom_booking_form_alter(&$form, &$form_state, $form_id)
+{
+
+    if ($form_id === "webform_submission_create_booking_add_form") {
+
+        // Add wrapper to ajax call.
+        $form['elements']['booking_details']['assign_room']['#prefix'] = '<div id="ajax-wrapper-field-offices">';
+        $form['elements']['booking_details']['assign_room']['#suffix'] = '</div>';
+
+        // Ajax call.
+        $form['elements']['booking_details']['guesthouse']['#ajax'] = [
+            'event' => 'change',
+            'callback' => 'custom_booking_update_room_list_callback',
+            'wrapper' => 'ajax-wrapper-field-offices',
+        ];
+
+        /**
+         * Ajax callback function.
+         */
+
+        // echo "<pre>";
+        // var_dump($form_id);
+        // echo "</pre>";
+        // exit;
+    }
+}
+function custom_booking_update_room_list_callback(array &$form, FormStateInterface $form_state)
+{
+    $commonService = \Drupal::service('common_services');
+    $guesthouseId = $form_state->getValue('guesthouse');
+    $startDate = $form_state->getValue('start_date');
+    $endDate = $form_state->getValue('end_date');
+    $options = $commonService->getRoomListOptions($guesthouseId, $startDate, $endDate);
+    // Add dynamic options to assign room field.
+    $form['elements']['booking_details']['assign_room']['#options'] = $options;
+    $field_room_element = \Drupal::service('renderer')->render($form['elements']['booking_details']['assign_room']);
+
+    // Return the HTML of the updated element as the AJAX response.
+    $response = new AjaxResponse();
+    $response->addCommand(new HtmlCommand('#ajax-wrapper-field-offices', $field_room_element));
+
+    return $response;
+}
+
+/**
+ * Implements hook_webform_submission_insert().
+ */
+function custom_booking_webform_submission_insert(WebformSubmissionInterface $webform_submission)
+{
+    // Call a function to create or update the corresponding node.
+    custom_booking_create_update_booking_node($webform_submission);
+}
+
+/**
+ * Create or update the corresponding Booking node.
+ */
+function custom_booking_create_update_booking_node(WebformSubmissionInterface $webform_submission)
+{
+    // Extract data from the webform submission.
+    $data = $webform_submission->getData();
+    // Create all values array.
+    $nodeValues = [
+        'type' => 'booking_history',
+        'title' => t('Booking from: :start_date to :end_date', [
+            ':start_date' => $data['start_date'],
+            ':end_date' => $data['end_date'],
+        ]),
+        'field_submission_id' => $webform_submission->id(),
+        'field_booking_start_date' => $data['start_date'],
+        'field_booking_end_date' => $data['end_date'],
+        'field_guest_house' => $data['guesthouse'],
+        'field_room_name' => $data['assign_room'],
+        'field_room_type' => $data['room_occupancy'],
+    ];
+    // Check if a node already exists for this submission.
+    $existing_node = custom_booking_load_booking_node($webform_submission->id());
+
+    if ($existing_node) {
+        // Node exists, then update it.
+        $node = Node::load($existing_node->id());
+        foreach ($nodeValues as $fieldName => $fieldValue) {
+            // echo "<pre>";
+            // var_dump($fieldName, $fieldValue);
+            // echo "</pre>";
+            // echo ('etst..........................................');
+            $node->set($fieldName, $fieldValue);
+        }
+        $node->save();
+        // Run cron.
+        // \Drupal::service('cron')->run();
+
+    } else {
+        // Node doesn't exist, then create it.
+        $node = Node::create($nodeValues);
+        $node->save();
+    }
+}
+
+/**
+ * Load the Booking node based on webform submission ID.
+ */
+function custom_booking_load_booking_node($submissionId)
+{
+    $query = \Drupal::entityQuery('node')
+        ->condition('type', 'booking_history')
+        ->condition('field_submission_id', $submissionId)
+        ->accessCheck(true)
+        ->range(0, 1);
+
+    $nids = $query->execute();
+    return reset($nids) ? Node::load(reset($nids)) : null;
+}
+
+/**
+ * Implements hook_webform_submission_update().
+ */
+function custom_booking_webform_submission_update(WebformSubmissionInterface $webform_submission)
+{
+    // Call a function to create or update the corresponding node.
+    custom_booking_create_update_booking_node($webform_submission);
+}
+
+// /**
+//  * Create or update the corresponding Booking node.
+//  */
+// function custom_booking_create_update_booking_node(WebformSubmissionInterface $webform_submission)
+// {
+//     // Extract data from the webform submission.
+//     $data = $webform_submission->getData();
+//     // Create all values array.
+//     $nodeValues = [
+//         'type' => 'booking_history',
+//         'title' => t('Booking from: :start_date to :end_date', [
+//             ':start_date' => $data['start_date'],
+//             ':end_date' => $data['end_date'],
+//         ]),
+//         'field_submission_id' => $webform_submission->id(),
+//         'field_booking_start_date' => $data['start_date'],
+//         'field_booking_end_date' => $data['end_date'],
+//         'field_guest_house' => $data['guesthouse'],
+//         'field_room_name' => $data['assign_room'],
+//         'field_room_type' => $data['room_occupancy'],
+//     ];
+//     // Check if a node already exists for this submission.
+//     $existing_node = custom_booking_load_booking_node($webform_submission->id());
+
+//     if ($existing_node) {
+//         // Node exists, then update it.
+//         $node = Node::load($existing_node->id());
+//         foreach ($nodeValues as $fieldName => $fieldValue) {
+//             $node->set($fieldName, $fieldValue);
+//         }
+//         $node->save();
+//     } else {
+//         // Node doesn't exist, then create it.
+//         $node = Node::create($nodeValues);
+//         $node->save();
+//     }
+// }
+
+/**
+ * Delete the corresponding Booking node.
+ */
+function custom_booking_delete_booking_node(WebformSubmissionInterface $webform_submission)
+{
+    // Extract data from the webform submission.
+    $submissionId = $webform_submission->id();
+
+    // Load the Booking node based on webform submission ID.
+    $node = custom_booking_load_booking_node($submissionId);
+
+    if ($node) {
+        // Node exists, delete it.
+        $node->delete();
+    }
+}
+
+/**
+ * View Query alter Hook for Intro Meeting filter .
+ */
+// function custom_booking_views_query_alter(ViewExecutable $view, QueryPluginBase $query)
+// {
+//     // All boking view on availblity popup alter.
+//     if ($view->id() == 'booking_history' && $view->current_display == 'booking_list') {
+//         // Get all param from url.
+//         $startDate = \Drupal::request()->query->get('start_date');
+//         $endDate = \Drupal::request()->query->get('end_date');
+//         $guesthouse = \Drupal::request()->query->get('guesthouse');
+//         $assignRoom = \Drupal::request()->query->get('assign_room');
+//         if (!empty($startDate) && !empty($endDate)) {
+//             $commonService = \Drupal::service('common_services');
+//             // Get all booking ids.
+//             $bookedRoomNids = $commonService->getBookedNids($startDate, $endDate, $assignRoom, $guesthouse);
+//             // Show only those booking in selected start and end date periods.
+//             if (empty($bookedRoomNids)) {
+//                 $bookedRoomNids = [0];
+//             }
+//             $query->addWhere('AND', 'webform_submission.sid', $bookedRoomNids, 'IN');
+//         }
+//     }
+// }

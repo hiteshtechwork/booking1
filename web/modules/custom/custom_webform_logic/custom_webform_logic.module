@@ -1,0 +1,32 @@
+<?php
+
+// /**
+//  * @file
+//  * Contains custom_webform_logic.module.
+//  */
+
+// use Drupal\webform\WebformSubmissionInterface;
+
+// /**
+//  * Implements hook_webform_submission_insert().
+//  */
+// function custom_webform_logic_webform_submission_insert(WebformSubmissionInterface $webform_submission)
+// {
+//     // Get Webform data.
+//     $data = $webform_submission->getData();
+
+//     var_dump($data);
+
+//     exit;
+
+//     // // Create a new node.
+//     // $node = \Drupal\node\Entity\Node::create([
+//     //     'type' => 'YOUR_CONTENT_TYPE', // Replace with your content type machine name.
+//     //     'title' => 'Node Title', // Set a default title or fetch from Webform data.
+//     //     'field_some_field' => $data['some_field'], // Map Webform fields to node fields.
+//     //     // Add more fields as needed.
+//     // ]);
+
+//     // Save the node.
+//     // $node->save();
+// }

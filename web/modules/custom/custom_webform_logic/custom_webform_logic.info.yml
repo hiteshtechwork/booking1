@@ -1,0 +1,5 @@
+name: "Custom Webform Logic"
+type: module
+description: "Custom logic for Webform based on Taxonomy term"
+core_version_requirement: ^8 || ^9 || ^10
+package: Custom
